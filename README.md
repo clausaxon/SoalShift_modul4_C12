@@ -11,6 +11,15 @@ Misalkan ada file bernama “halo” di dalam folder “INI_FOLDER”, dan key y
 “INI_FOLDER/halo” saat belum di-mount maka akan bernama “n,nsbZ]wio/QBE#”, saat telah di-mount maka akan otomatis terdekripsi kembali menjadi “INI_FOLDER/halo” .
 Perhatian: Karakter ‘/’ adalah karakter ilegal dalam penamaan file atau folder dalam *NIX, maka dari itu dapat diabaikan
 
+Untuk Encoder : Jadi yang pertama kita lakukan adalah membuat array yang berisi character list yang diinginkan yang totalnya adalah 94 character
+
+Lalu kita membuat ruangan untuk menentukan jarak key yang diinginkan
+
+Lalu kita membuat kondisi dimana jika alphabet yang diinginkan sudah dapat , maka kita dapat melakukan looping untuk menentukan character list posisi yang diinginkan setelah sudah ditambahkan key.
+
+Untuk decoder : Sama seperti encoder tetapi perbedaan dalam isi looping dan if
+
+
 **2.** Semua file video yang tersimpan secara terpecah-pecah (splitted) harus secara otomatis tergabung (joined) dan diletakkan dalam folder “Videos”
 Urutan operasi dari kebutuhan ini adalah:
 
@@ -21,6 +30,8 @@ Urutan operasi dari kebutuhan ini adalah:
       - Karena mungkin file video sangat banyak sehingga mungkin saja saat menggabungkan file video, file system             akan membutuhkan waktu yang lama untuk sukses ter-mount. Maka pastikan saat akan menggabungkan file                 pecahan video, file system akan membuat 1 thread/proses(fork) baru yang dikhususkan untuk menggabungkan             file video tersebut
       - Pindahkan seluruh file video yang sudah ter-join ke dalam folder “Videos”
       - Jangan tampilkan file pecahan di direktori manapun
+      
+     
       
   2. Tepat saat file system akan di-unmount 
       - Hapus semua file video yang berada di folder “Videos”, tapi jangan hapus file pecahan yang terdapat di               root directory file system
