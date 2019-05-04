@@ -46,4 +46,266 @@ Jika ditemukan file dengan spesifikasi tersebut ketika membuka direktori, Atta a
 
 **4.** Pada folder YOUTUBER, setiap membuat folder permission foldernya akan otomatis menjadi 750. Juga ketika membuat file permissionnya akan otomatis menjadi 640 dan ekstensi filenya akan bertambah “.iz1”. File berekstensi “.iz1” tidak bisa diubah permissionnya dan memunculkan error bertuliskan “File ekstensi iz1 tidak boleh diubah permissionnya.”
 
+Berikut adalah kodingan untuk no 3 dan 4
+
+```
+#define FUSE_USE_VERSION 28
+#include <fuse.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <errno.h>
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <pwd.h>
+#include <grp.h>
+#include <sys/xattr.h>
+#include <sys/wait.h>
+#include <pthread.h>
+
+static const char *dirpath = "/home/hayu/modul4";
+
+void checkOwnerGroup(const char *path, const char *cpath);
+
+static int xmp_getattr(const char *path, struct stat *stbuf)
+{
+	int res;
+        char fpath[1000];
+        sprintf(fpath,"%s%s",dirpath,path);
+        res = lstat(fpath, stbuf);
+
+        if (res == -1)
+                return -errno;
+
+        return 0;
+}
+
+static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,off_t offset, struct fuse_file_info *fi)
+{
+  	char fpath[1000];
+	char cpath[1000];
+	char youtuber[100]="/YOUTUBER";
+        if(strcmp(path,"/") == 0)
+        {
+                path=dirpath;
+                sprintf(fpath,"%s",path);
+        }
+        else
+	{
+		sprintf(cpath, "%s",path);
+		sprintf(fpath, "%s%s", dirpath, cpath);
+	}
+        int res;
+
+        DIR *dp;
+        struct dirent *de;
+
+        (void) offset;
+        (void) fi;
+
+        dp = opendir(fpath);
+        if (dp == NULL)
+                return -errno;
+
+        while ((de = readdir(dp)) != NULL) {
+                struct stat st;
+                memset(&st, 0, sizeof(st));
+                st.st_ino = de->d_ino;
+                st.st_mode = de->d_type << 12;
+		char temp[1000];
+		strcpy(temp,de->d_name);
+		char fullpath[1000];
+		sprintf(fullpath,"%s%s", fpath, de->d_name);
+		if(strstr(fpath,youtuber) && de->d_type == DT_REG)
+		{
+			char npath[1000];
+			sprintf(npath,"%s.iz1",temp);
+			res = (filler(buf, npath, &st, 0));
+			checkOwnerGroup(fullpath,npath);
+		}
+		else
+		{
+                	res = (filler(buf, temp, &st, 0));
+			checkOwnerGroup(fullpath,temp);
+
+                	if(res!=0) break;
+		}
+        }
+
+        closedir(dp);
+        return 0;
+}
+
+static int xmp_read(const char *path, char *buf, size_t size, off_t offset,struct fuse_file_info *fi)
+{
+	char fpath[1000];
+        if(strcmp(path,"/") == 0)
+        {
+                path=dirpath;
+                sprintf(fpath,"%s",path);
+        }
+        else sprintf(fpath, "%s%s",dirpath,path);
+        int res = 0;
+  	int fd = 0 ;
+
+        (void) fi;
+        fd = open(fpath, O_RDONLY);
+        if (fd == -1)
+                return -errno;
+
+        res = pread(fd, buf, size, offset);
+        if (res == -1)
+                res = -errno;
+
+        close(fd);
+        return res;
+}
+
+void checkOwnerGroup(const char *path, const char *cpath)
+{
+	char copy[1000];
+	sprintf(copy,"%s%s",dirpath,path);
+	struct stat file;
+        lstat(path,&file);
+        struct group *grp;
+        struct passwd *pwd;
+
+        grp = getgrgid(file.st_uid);
+        pwd = getpwuid(file.st_gid);
+
+        if (strcmp(grp->gr_name, "rusak")!=0 && (strcmp(pwd->pw_name, "chipset")!=0 || !strcmp(pwd->pw_name, "ic_controller")!=0) && access(path,R_OK) !=0))
+	{
+		char filemiris[]="/filemiris.txt";
+		char newfile[1000];
+		sprintf(newfile,"%s%s",dirpath,filemiris);
+        	FILE *out_file = fopen(newfile,"a");
+        	fprintf(out_file,"%s %d %d %ld %s %s\n", cpath, file.st_uid, file.st_gid, file.st_atime, grp->gr_name, pwd->pw_name);
+		fclose(out_file);
+        	remove(path);
+        }
+}
+
+static int xmp_mkdir(const char *path, mode_t mode)
+{
+        int res;
+        char fpath[1000];
+	char cpath[1000];
+	char youtuber[1000]="/YOUTUBER";
+	sprintf(cpath, "%s", path);
+        sprintf(fpath, "%s%s", dirpath,cpath);
+
+	if(strstr(fpath,youtuber))
+	{
+		res = mkdir(fpath,0750);
+	}
+	else
+	{
+		res = mkdir(fpath,mode);
+	}
+
+        if(res==-1)
+        {
+                return -errno;
+        }
+        return 0;
+}
+
+static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+	(void) fi;
+        int res;
+        char fpath[1000];
+	char cpath[1000];
+	char youtuber[1000]="/YOUTUBER";
+	sprintf(cpath, "%s", path);
+        sprintf(fpath, "%s%s", dirpath, cpath);
+
+	if(strstr(fpath,youtuber))
+	{
+		res = creat(fpath,0640);
+	}
+	else
+	{
+		res = creat(fpath,mode);
+	}
+
+        if(res==-1)
+        {
+                return -errno;
+        }
+	close(res);
+        return 0;
+}
+
+static int xmp_chmod (const char *path, mode_t mode)
+{
+        int res;
+        char fpath[1000];
+	char cpath[1000];
+	char youtuber[1000]="/YOUTUBER";
+	sprintf(cpath, "%s", path);
+        sprintf(fpath, "%s%s", dirpath, cpath);
+
+	if(strstr(fpath,youtuber))
+	{
+		int status;
+		pid_t child1;
+		child1= fork();
+		if (child1==0)
+		{
+			char *argv[5] = {"zenity", "--error", "--title=Error", "--text=File ekstensi iz1 tidak boleh diubah permisionnya", NULL};
+                	execv("/usr/bin/zenity", argv);
+		}
+		else
+		{
+			while(wait(&status)>0);
+		}
+	}
+	else
+	{
+		res = chmod(fpath,mode);
+	}
+
+        if(res==-1)
+        {
+                return -errno;
+        }
+        return 0;
+}
+
+static int xmp_chown(const char *path, uid_t uid, gid_t gid)
+{
+	int res;
+	char fpath[1000];
+	char cpath[1000];
+	sprintf(cpath, "%s", path);
+	sprintf(fpath,"%s%s", dirpath,path);
+	res = lchown(fpath,uid,gid);
+	if(res==-1)
+	{
+		return -errno;
+	}
+	return 0;
+}
+
+static struct fuse_operations xmp_oper = {
+        .getattr        = xmp_getattr,
+        .readdir        = xmp_readdir,
+        .read           = xmp_read,
+	.mkdir		= xmp_mkdir,
+	.chmod		= xmp_chmod,
+	.create		= xmp_create,
+	.chown		= xmp_chown,
+};
+
+int main(int argc, char *argv[])
+{
+        umask(0);
+        return fuse_main(argc, argv, &xmp_oper, NULL);
+}
+```
+
 **5.** Ketika mengedit suatu file dan melakukan save, maka akan terbuat folder baru bernama Backup kemudian hasil dari save tersebut akan disimpan pada backup dengan nama namafile_[timestamp].ekstensi. Dan ketika file asli dihapus, maka akan dibuat folder bernama RecycleBin, kemudian file yang dihapus beserta semua backup dari file yang dihapus tersebut (jika ada) di zip dengan nama namafile_deleted_[timestamp].zip dan ditaruh kedalam folder RecycleBin (file asli dan backup terhapus). Dengan format [timestamp] adalah yyyy-MM-dd_HH:mm:ss 
